@@ -8,7 +8,14 @@ package main
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"pulseDashboard/internal/config"
+	"pulseDashboard/internal/database"
 )
+
+func init() {
+	config.LoadEnvVariables()
+	database.ConnectDB()
+}
 
 func main() {
 	router := gin.Default()
