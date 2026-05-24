@@ -49,6 +49,50 @@ func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (
 	return &CreateJobResult{Job: createdJob}, nil
 }
 
+func (s *Service) CreateJobsService(ctx context.Context, req *[]CreateJobRequest, userID string) (*[]CreateJobResult, error) {
+	for _, r := range *req {
+		if r.MaxRetries != nil && *r.MaxRetries > 10 {
+			return nil, fmt.Errorf("%w: max retries must be 10 or less", ErrInvalidJobInput)
+		}
+	}
+
+	jobs := make([]*Job, 0, len(*req))
+	for _, r := range *req {
+		job := &Job{
+			UserID:  userID,
+			Type:    r.Type,
+			Payload: r.Payload,
+		}
+
+		if r.MaxRetries != nil {
+			job.MaxRetries = *r.MaxRetries
+		}
+		if r.ScheduledAt != nil {
+			job.ScheduledAt = *r.ScheduledAt
+		}
+
+		if r.Priority != nil {
+			job.Priority = *r.Priority
+		}
+
+		jobs = append(jobs, job)
+	}
+
+	createdJobs, err := s.repo.CreateJobs(ctx, jobs)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrToCreateJobs, err)
+	}
+
+	result := make([]CreateJobResult, 0, len(createdJobs))
+	for _, j := range createdJobs {
+		result = append(result, CreateJobResult{
+			Job: j,
+		})
+	}
+
+	return &result, nil
+}
+
 func (s *Service) GetJobByIdService(ctx context.Context, id string) (*GetJobByIdResult, error) {
 	result, err := s.repo.GetJobByID(ctx, id)
 	if err != nil {

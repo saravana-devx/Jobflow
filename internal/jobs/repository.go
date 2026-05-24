@@ -22,6 +22,14 @@ func (r *JobsRepository) CreateJob(ctx context.Context, job *Job) (*Job, error) 
 	return job, nil
 }
 
+func (r *JobsRepository) CreateJobs(ctx context.Context, job []*Job) ([]*Job, error) {
+	err := r.db.WithContext(ctx).Create(job).Error
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
 func (r *JobsRepository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 	var job Job
 	err := r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).First(&job).Error
