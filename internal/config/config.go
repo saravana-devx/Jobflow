@@ -108,6 +108,15 @@ func (c *Config) validate() error {
 	return nil
 }
 
+func (c *Config) RabbitMQURL() string {
+	return fmt.Sprintf("amqp://%s:%s@%s:5672/%s",
+		c.RabbitMQUser,
+		c.RabbitMQPass,
+		c.RabbitMQHost,
+		c.RabbitMQVHost,
+	)
+}
+
 // Get returns the loaded config. It panics if Load has not run yet — that's a
 // wiring bug (programming error), not a runtime condition to handle.
 func Get() *Config {

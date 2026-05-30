@@ -26,7 +26,10 @@ func New() (*App, error) {
 	}
 	rdb := redis.NewRedis()
 
-	rabbitMQConn := rabbitmq.NewRabbitMQConnection()
+	mq := rabbitmq.NewRabbitMQConnection()
+	if err := mq.InitializeQueues(rabbitmq.AppQueues); err != nil {
+		return nil, err
+	}
 
 	userRepo := auth.NewUserRepository(db)
 	jtiStore := auth.NewJTIStore(rdb)
@@ -34,7 +37,7 @@ func New() (*App, error) {
 	authHandler := auth.NewHandler(authService)
 
 	jobsRepo := jobs.NewJobRepository(db)
-	jobsService := jobs.NewService(jobsRepo)
+	jobsService := jobs.NewService(jobsRepo, mq)
 	jobsHandler := jobs.NewHandler(jobsService)
 
 	router := gin.Default()
@@ -44,7 +47,7 @@ func New() (*App, error) {
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return nil, err
 	}
-	routes.Register(router, authHandler, jobsHandler, jtiStore, db, rdb, rabbitMQConn)
+	routes.Register(router, authHandler, jobsHandler, jtiStore, db, rdb, mq)
 
-	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: rabbitMQConn}, nil
+	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: mq}, nil
 }

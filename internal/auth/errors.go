@@ -9,7 +9,7 @@ var (
 	ErrInvalidEmail         = errors.New("invalid email address")
 	ErrWeakPassword         = errors.New("weak password")
 	ErrInternal             = errors.New("internal error")
-	ErrHashingPassword      = errors.New("problem occured while hashing the password")
+	ErrHashingPassword      = errors.New("problem occurred while hashing the password")
 	ErrToCreateUser         = errors.New("failed to create user")
 	ErrAccessTokenGenerate  = errors.New("failed to generate access token")
 	ErrRefreshTokenGenerate = errors.New("failed to generate refresh token")

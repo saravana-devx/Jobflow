@@ -1,5 +1,5 @@
 /**
-* * Standlone worker process (parent/child demo)
+* * Standalone worker process (parent/child demo)
  */
 
 package main

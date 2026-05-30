@@ -30,7 +30,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	result, err := h.svc.CreateUserSerive(ctx, &body)
+	result, err := h.svc.CreateUserService(ctx, &body)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrEmailExists):
@@ -60,7 +60,7 @@ func (h *Handler) LoginUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	loginResult, err := h.svc.LoginUserSerive(ctx, &body)
+	loginResult, err := h.svc.LoginUserService(ctx, &body)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrInvalidEmail), errors.Is(err, ErrWrongPassword):

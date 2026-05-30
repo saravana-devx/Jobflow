@@ -122,7 +122,7 @@ services:
     volumes:
       - .:/app # BIND MOUNT - this is the magic line
         # "." = your current project folder on host
-        # "/app" = folder inside the conainer
+        # "/app" = folder inside the container
         # they are now the SAME folder, live synced
         #Keep the /app in the folder and sync it but we don't want to keep the /app/tmp the binary of the go in the host machine it should be only in the docker container
       - /app/tmp # ANONYMOUS VOLUME for the tmp folder
@@ -163,7 +163,7 @@ services:
       GO_ENV: development
 
 volumes:
-  postgresql_data: # we have to right the volumes at the end of the docker-compose.yml file and this volume is used to store/presist the data in my machine
+  postgresql_data: # we have to write the volumes at the end of the docker-compose.yml file and this volume is used to store/persist the data in my machine
     # this data only gets delete only if i delete my docker volume or delete the container
   redis_data:
   go_build_cache: # Go compiler cache — speeds up rebuilds

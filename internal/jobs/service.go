@@ -2,18 +2,34 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"gorm.io/gorm"
+	"pulseDashboard/internal/rabbitmq"
 )
 
 type Service struct {
 	repo *JobsRepository
+	mq   *rabbitmq.RabbitMQ
 }
 
-func NewService(repo *JobsRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *JobsRepository, mq *rabbitmq.RabbitMQ) *Service {
+	return &Service{repo: repo, mq: mq}
+}
+
+func (s *Service) publishJob(ctx context.Context, job *Job) error {
+	payload, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal job for publish: %w", err)
+	}
+	if err := s.mq.Publish(ctx, rabbitmq.QueueJobs, payload); err != nil {
+		return err
+	}
+	log.Printf("published job to queue: id=%s queue=%s", job.ID, rabbitmq.QueueJobs)
+	return nil
 }
 
 func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (*CreateJobResult, error) {
@@ -44,6 +60,10 @@ func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (
 	createdJob, err := s.repo.CreateJob(ctx, job)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrToCreateJob, err)
+	}
+
+	if err := s.publishJob(ctx, createdJob); err != nil {
+		return nil, fmt.Errorf("publish job: %w", err)
 	}
 
 	return &CreateJobResult{Job: createdJob}, nil
@@ -85,9 +105,10 @@ func (s *Service) CreateJobsService(ctx context.Context, req *[]CreateJobRequest
 
 	result := make([]CreateJobResult, 0, len(createdJobs))
 	for _, j := range createdJobs {
-		result = append(result, CreateJobResult{
-			Job: j,
-		})
+		if err := s.publishJob(ctx, j); err != nil {
+			return nil, fmt.Errorf("publish job %s: %w", j.ID, err)
+		}
+		result = append(result, CreateJobResult{Job: j})
 	}
 
 	return &result, nil

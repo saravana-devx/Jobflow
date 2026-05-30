@@ -18,7 +18,7 @@ func NewService(repo *UserRepository, jtiStore *JTIStore) *Service {
 	return &Service{repo: repo, jtiStore: jtiStore}
 }
 
-func (s *Service) CreateUserSerive(ctx context.Context, req *CreateUserRequest) (*SignupResult, error) {
+func (s *Service) CreateUserService(ctx context.Context, req *CreateUserRequest) (*SignupResult, error) {
 	if !validateEmail(req.Email) {
 		return nil, ErrInvalidEmail
 	}
@@ -71,7 +71,7 @@ func (s *Service) CreateUserSerive(ctx context.Context, req *CreateUserRequest) 
 	}, nil
 }
 
-func (s *Service) LoginUserSerive(ctx context.Context, req *LoginRequest) (*LoginResult, error) {
+func (s *Service) LoginUserService(ctx context.Context, req *LoginRequest) (*LoginResult, error) {
 	if !validateEmail(req.Email) {
 		return nil, ErrInvalidEmail
 	}

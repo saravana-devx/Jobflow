@@ -1,8 +1,8 @@
 package rabbitmq
 
 import (
-	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -19,24 +19,14 @@ const (
 )
 
 type RabbitMQ struct {
-	Conn    *amqp.Connection
-	Channel *amqp.Channel
+	Conn     *amqp.Connection
+	Channel  *amqp.Channel
+	mu       sync.Mutex
+	confirms <-chan amqp.Confirmation
 }
 
-func getRabbitMQConnURL() string {
-	cfg := config.Get()
-	return fmt.Sprintf("amqp://%s:%s@%s:5672/%s",
-		cfg.RabbitMQUser,
-		cfg.RabbitMQPass,
-		cfg.RabbitMQHost,
-		cfg.RabbitMQVHost,
-	)
-}
-
-// function to create a new rabbitmq connection and channel
 func NewRabbitMQConnection() *RabbitMQ {
-
-	url := getRabbitMQConnURL()
+	url := config.Get().RabbitMQURL()
 
 	// connect to RabbitMQ, retrying while the broker finishes starting up
 	var conn *amqp.Connection
@@ -53,16 +43,20 @@ func NewRabbitMQConnection() *RabbitMQ {
 		log.Fatalf("Failed to connect to RabbitMQ after %d attempts: %s", connectMaxAttempts, err)
 	}
 
-	// Open a RabbitMQ Channel
 	ch, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("Failed to open a RabbitMQ channel : %s", err)
+		log.Fatalf("Failed to open a RabbitMQ channel: %s", err)
 	}
 
-	// Store RabbitMQ Connection and Channel
+	// Put channel in confirm mode so every Publish gets a broker ack/nack.
+	if err := ch.Confirm(false); err != nil {
+		log.Fatalf("Failed to enable publisher confirms: %s", err)
+	}
+
 	return &RabbitMQ{
-		Conn:    conn,
-		Channel: ch,
+		Conn:     conn,
+		Channel:  ch,
+		confirms: ch.NotifyPublish(make(chan amqp.Confirmation, 1)),
 	}
 }
 

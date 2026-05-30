@@ -32,7 +32,7 @@ func (r *JobsRepository) CreateJobs(ctx context.Context, job []*Job) ([]*Job, er
 
 func (r *JobsRepository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 	var job Job
-	err := r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).First(&job).Error
+	err := r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Take(&job).Error
 	if err != nil {
 		return nil, err
 	}

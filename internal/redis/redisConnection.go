@@ -17,9 +17,9 @@ var (
 	once          sync.Once
 )
 
-// singleton pattern gurantees that this redis connection will create only once
-// every goroutines / functions will gaurantee that they well get the same pointer reference
-// without singleton pattern we might can get multiple redis connections
+// singleton pattern guarantees that this redis connection will be created only once
+// every goroutine / function will get the same pointer reference
+// without singleton pattern we might get multiple redis connections
 func NewRedis() *Redis {
 	once.Do(func() {
 		c := config.Get()

@@ -27,19 +27,19 @@ const (
 
 type Job struct {
 	ID          string         `gorm:"type:uuid;primaryKey;not null;default:uuid_generate_v7()"`
-	UserID      string         `gorm:"type:uuid;not null"`
+	UserID      string         `gorm:"type:uuid;not null;index"`
 	Type        JobType        `gorm:"not null"`
 	Payload     datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Status      JobStatus      `gorm:"type:job_status;not null;default:'pending'"`
 	Priority    int            `gorm:"not null;default:5"`
 	WorkerID    *string
-	Attempts    int 		   `gorm:"not null;default:0"`
-	MaxRetries  int 		   `gorm:"not null;default:3"`
+	Attempts    int            `gorm:"not null;default:0"`
+	MaxRetries  int            `gorm:"not null;default:3"`
 	ErrorMsg    *string
-	ScheduledAt time.Time 	   `gorm:"not null;default:now()"`
+	ScheduledAt time.Time      `gorm:"not null;default:now()"`
 	StartedAt   *time.Time
 	CompletedAt *time.Time
-	CreatedAt   time.Time      `gorm:"primaryKey;not null;default:now()"`
+	CreatedAt   time.Time      `gorm:"not null;default:now()"`
 	UpdatedAt   time.Time      `gorm:"not null;default:now()"`
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
 }
