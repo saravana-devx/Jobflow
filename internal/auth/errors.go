@@ -7,6 +7,7 @@ import (
 var (
 	ErrEmailExists          = errors.New("email already exists")
 	ErrInvalidEmail         = errors.New("invalid email address")
+	ErrNotFound             = errors.New("email not found")
 	ErrWeakPassword         = errors.New("weak password")
 	ErrInternal             = errors.New("internal error")
 	ErrHashingPassword      = errors.New("problem occurred while hashing the password")

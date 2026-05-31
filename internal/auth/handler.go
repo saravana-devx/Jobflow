@@ -63,7 +63,7 @@ func (h *Handler) LoginUser(c *gin.Context) {
 	loginResult, err := h.svc.LoginUserService(ctx, &body)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrInvalidEmail), errors.Is(err, ErrWrongPassword):
+		case errors.Is(err, ErrInvalidEmail), errors.Is(err, ErrWrongPassword), errors.Is(err, ErrNotFound):
 			httpx.Error(c, http.StatusUnauthorized, err.Error())
 		default:
 			httpx.Error(c, http.StatusInternalServerError, httpx.MsgInternalError)

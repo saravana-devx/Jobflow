@@ -79,7 +79,7 @@ func (s *Service) LoginUserService(ctx context.Context, req *LoginRequest) (*Log
 	user, err := s.repo.GetUserPassword(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrWrongPassword
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}

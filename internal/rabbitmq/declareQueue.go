@@ -11,8 +11,8 @@ import (
 type QueueConfig struct {
 	Name       string
 	Durable    bool
-	AutoDelete bool
-	Exclusive  bool
+	AutoDelete bool   // delete when the last consumer disconnects;
+	Exclusive  bool   // Only the connection that created the queue can use it
 	Type       string // amqp.QueueTypeQuorum | amqp.QueueTypeClassic | amqp.QueueTypeStream
 	DLXName    string // dead-letter exchange; empty = disabled
 	MessageTTL int64  // per-message TTL in milliseconds; 0 = no TTL

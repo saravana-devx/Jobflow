@@ -37,6 +37,6 @@ func ConnectDB() (*gorm.DB, error) {
 		fmt.Println("postgres ping : %w", err)
 	}
 
-	fmt.Println("Database connected successfully...", dsn)
+	fmt.Println("Database connected successfully...")
 	return db, nil
 }

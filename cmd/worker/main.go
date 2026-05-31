@@ -1,13 +1,18 @@
-/**
-* * Standalone worker process (parent/child demo)
- */
-
 package main
 
 import (
-	"fmt"
+    "log"
+    "pulseDashboard/internal/config"
+    "pulseDashboard/internal/rabbitmq"
+    "pulseDashboard/internal/worker"
 )
 
 func main() {
-	fmt.Println("Running in docker container")
+    if err := config.Load(); err != nil {
+        log.Fatalf("config load failed: %v", err)
+    }
+
+    mq := rabbitmq.NewRabbitMQConnection()
+    w := worker.New(mq)
+    w.Start()
 }

@@ -21,8 +21,8 @@ const (
 type RabbitMQ struct {
 	Conn     *amqp.Connection
 	Channel  *amqp.Channel
-	mu       sync.Mutex
-	confirms <-chan amqp.Confirmation
+	mu       sync.Mutex //only one goroutine can perform the publish + confirmation workflow at a time
+	confirms <-chan amqp.Confirmation // tcp socket delivers messages in order, so we can correlate confirms to publishes by waiting for the next confirm after each publish
 }
 
 func NewRabbitMQConnection() *RabbitMQ {
@@ -33,6 +33,7 @@ func NewRabbitMQConnection() *RabbitMQ {
 	var err error
 	for attempt := 1; attempt <= connectMaxAttempts; attempt++ {
 		conn, err = amqp.Dial(url)
+		// If there is no error then we have successfully connected to RabbitMQ, so we can break out of the loop
 		if err == nil {
 			break
 		}

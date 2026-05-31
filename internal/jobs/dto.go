@@ -39,9 +39,3 @@ type UpdateJobRequest struct {
 type UpdateJobResult struct {
 	Job *Job
 }
-
-// type GetJobByIdRequest struct{}
-
-// type GetAllJobsRequest struct{}
-
-// type DeleteJobRequest struct{}

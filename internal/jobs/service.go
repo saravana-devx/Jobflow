@@ -21,7 +21,16 @@ func NewService(repo *JobsRepository, mq *rabbitmq.RabbitMQ) *Service {
 }
 
 func (s *Service) publishJob(ctx context.Context, job *Job) error {
-	payload, err := json.Marshal(job)
+	msg := JobMessage{
+		ID:          job.ID,
+		UserID:      job.UserID,
+		Type:        job.Type,
+		Payload:     job.Payload,
+		Priority:    job.Priority,
+		MaxRetries:  job.MaxRetries,
+		ScheduledAt: job.ScheduledAt,
+	}
+	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal job for publish: %w", err)
 	}
