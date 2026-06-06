@@ -15,6 +15,9 @@ func main() {
 	}
 
 	mq := rabbitmq.NewRabbitMQConnection()
+	if err := mq.InitializeQueues(rabbitmq.AppQueues); err != nil {
+		log.Fatalf("failed to initialize queues: %v", err)
+	}
 	db, err := database.ConnectDB()
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)

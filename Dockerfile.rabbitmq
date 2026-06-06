@@ -1,4 +1,4 @@
-FROM rabbitmq:4.0-management-alpine
+FROM rabbitmq:4.0.2-management-alpine
 
 RUN apk add --no-cache curl && \
     curl -fsSL https://github.com/rabbitmq/rabbitmq-delayed-message-exchange/releases/download/v4.0.2/rabbitmq_delayed_message_exchange-4.0.2.ez \
