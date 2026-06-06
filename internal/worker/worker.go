@@ -1,7 +1,8 @@
-package worker
+﻿package worker
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -9,15 +10,26 @@ import (
 	"syscall"
 	"time"
 
-	"pulseDashboard/internal/rabbitmq"
+	"gorm.io/gorm"
+	"jobflow/internal/rabbitmq"
+	redisx "jobflow/internal/redis"
 )
 
+// numConsumers is the number of parallel AMQP consumers on the jobs queue.
+// Each consumer gets its own channel, so they don't block each other.
+const numConsumers = 5
+
 type Worker struct {
-	mq *rabbitmq.RabbitMQ
+	mq       *rabbitmq.RabbitMQ
+	repo     *WorkerRepository
+	rdb      *redisx.Redis
+	workerID string
 }
 
-func New(mq *rabbitmq.RabbitMQ) *Worker {
-	return &Worker{mq: mq}
+func New(mq *rabbitmq.RabbitMQ, db *gorm.DB, rdb *redisx.Redis) *Worker {
+	hostname, _ := os.Hostname()
+	workerID := fmt.Sprintf("%s-%d", hostname, os.Getpid())
+	return &Worker{mq: mq, repo: NewWorkerRepository(db), rdb: rdb, workerID: workerID}
 }
 
 func (w *Worker) Start() {
@@ -34,16 +46,17 @@ func (w *Worker) Start() {
 		cancel()
 	}()
 
-	err := w.mq.Consume(ctx, rabbitmq.QueueJobs, 3, func(body []byte) error {
-		wg.Add(1)
-		defer wg.Done()
-		return handleJob(body)
-	})
-	if err != nil {
-		log.Fatalf("failed to start consumer: %v", err)
+	for range numConsumers {
+		if err := w.mq.Consume(ctx, rabbitmq.QueueJobs, 3, func(body []byte) error {
+			wg.Add(1)
+			defer wg.Done()
+			return w.handleJob(body)
+		}); err != nil {
+			log.Fatalf("failed to start consumer: %v", err)
+		}
 	}
 
-	log.Println("Worker started, waiting for jobs...")
+	log.Printf("Worker started: id=%s consumers=%d", w.workerID, numConsumers)
 	<-ctx.Done()
 	w.drain(&wg)
 }

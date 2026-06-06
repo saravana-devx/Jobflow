@@ -70,7 +70,9 @@ services:
       ]
 
   rabbitmq:
-    image: rabbitmq:${RABBITMQ_VERSION}-management-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.rabbitmq
     container_name: rabbitmq
     hostname: rabbitmq
     restart: unless-stopped
@@ -79,7 +81,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
     volumes:
-      - ./rabbitmq:/var/lib/rabbitmq
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       # check_port_connectivity verifies the AMQP listener (5672) is actually
       # accepting connections, not just that the node is alive (ping).
@@ -163,6 +165,7 @@ services:
       GO_ENV: development
 
 volumes:
+  rabbitmq_data:
   postgresql_data: # we have to write the volumes at the end of the docker-compose.yml file and this volume is used to store/persist the data in my machine
     # this data only gets delete only if i delete my docker volume or delete the container
   redis_data:

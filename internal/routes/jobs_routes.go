@@ -1,10 +1,10 @@
-package routes
+﻿package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"pulseDashboard/internal/auth"
-	"pulseDashboard/internal/jobs"
-	"pulseDashboard/internal/middleware"
+	"jobflow/internal/auth"
+	"jobflow/internal/jobs"
+	"jobflow/internal/middleware"
 )
 
 func RegisterJobsRoutes(r *gin.Engine, h *jobs.Handler, jtiStore *auth.JTIStore) {

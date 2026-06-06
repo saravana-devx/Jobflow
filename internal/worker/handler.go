@@ -1,18 +1,24 @@
-package worker
+﻿package worker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
-	"pulseDashboard/internal/jobs"
+	"jobflow/internal/jobs"
 )
 
-// Job is the message envelope received from the queue.
 type Job = jobs.JobMessage
 
-// handleJob unmarshals the raw message and routes it to the correct handler.
-func handleJob(body []byte) error {
+type jobStatusEvent struct {
+	JobID  string `json:"jobID"`
+	Status string `json:"status"`
+	UserID string `json:"userID"`
+}
+
+func (w *Worker) handleJob(body []byte) error {
 	var job Job
 	if err := job.Unmarshal(body); err != nil {
 		return fmt.Errorf("unmarshal failed: %w", err)
@@ -22,9 +28,13 @@ func handleJob(body []byte) error {
 
 	switch job.Type {
 	case jobs.JobEmail:
-		return handleSendEmail(&job)
+		return w.handleSendEmail(&job)
 	case jobs.JobGenerateReport:
-		return handleReportGeneration(&job)
+		return w.handleReportGeneration(&job)
+	case jobs.JobResizeImage:
+		return w.handleResizeImage(&job)
+	case jobs.JobExportCSV:
+		return w.handleExportCSV(&job)
 	default:
 		log.Printf("unknown job type: %s", job.Type)
 	}
@@ -32,38 +42,73 @@ func handleJob(body []byte) error {
 	return nil
 }
 
-// --- individual handlers ---
-
-type sendEmailPayload struct {
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+func (w *Worker) publishStatusEvent(ctx context.Context, job *Job, status jobs.JobStatus) {
+	event, err := json.Marshal(jobStatusEvent{JobID: job.ID, Status: string(status), UserID: job.UserID})
+	if err != nil {
+		log.Printf("job=%s: failed to marshal status event: %v", job.ID, err)
+		return
+	}
+	if err := w.rdb.Publish(ctx, "user:"+job.UserID+":jobs", event); err != nil {
+		log.Printf("job=%s: failed to publish status event: %v", job.ID, err)
+	}
 }
 
-func handleSendEmail(job *Job) error {
-	var p sendEmailPayload
-	if err := json.Unmarshal(job.Payload, &p); err != nil {
-		return fmt.Errorf("sendEmail job=%s: invalid payload: %w", job.ID, err)
+func (w *Worker) handleSendEmail(job *Job) error {
+	ctx := context.Background()
+	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
+		return fmt.Errorf("sendEmail job=%s: failed to mark running: %w", job.ID, err)
 	}
-
-	log.Printf("sendEmail job=%s to=%s subject=%q", job.ID, p.To, p.Subject)
-	// TODO: call email service
+	log.Printf("sendEmail job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
+	time.Sleep(2 * time.Second)
+	if err := w.repo.MarkCompleted(ctx, job.ID); err != nil {
+		return fmt.Errorf("sendEmail job=%s: failed to mark completed: %w", job.ID, err)
+	}
+	w.publishStatusEvent(ctx, job, jobs.JobStatusCompleted)
+	log.Printf("sendEmail job=%s completed", job.ID)
 	return nil
 }
 
-type reportGenerationPayload struct {
-	ReportType string         `json:"reportType"`
-	Format     string         `json:"format"` // "pdf" | "csv" | "xlsx"
-	Filters    map[string]any `json:"filters,omitempty"`
+func (w *Worker) handleReportGeneration(job *Job) error {
+	ctx := context.Background()
+	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
+		return fmt.Errorf("reportGeneration job=%s: failed to mark running: %w", job.ID, err)
+	}
+	log.Printf("reportGeneration job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
+	time.Sleep(3 * time.Second)
+	if err := w.repo.MarkCompleted(ctx, job.ID); err != nil {
+		return fmt.Errorf("reportGeneration job=%s: failed to mark completed: %w", job.ID, err)
+	}
+	w.publishStatusEvent(ctx, job, jobs.JobStatusCompleted)
+	log.Printf("reportGeneration job=%s completed", job.ID)
+	return nil
 }
 
-func handleReportGeneration(job *Job) error {
-	var p reportGenerationPayload
-	if err := json.Unmarshal(job.Payload, &p); err != nil {
-		return fmt.Errorf("reportGeneration job=%s: invalid payload: %w", job.ID, err)
+func (w *Worker) handleResizeImage(job *Job) error {
+	ctx := context.Background()
+	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
+		return fmt.Errorf("resizeImage job=%s: failed to mark running: %w", job.ID, err)
 	}
+	log.Printf("resizeImage job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
+	time.Sleep(2 * time.Second)
+	if err := w.repo.MarkCompleted(ctx, job.ID); err != nil {
+		return fmt.Errorf("resizeImage job=%s: failed to mark completed: %w", job.ID, err)
+	}
+	w.publishStatusEvent(ctx, job, jobs.JobStatusCompleted)
+	log.Printf("resizeImage job=%s completed", job.ID)
+	return nil
+}
 
-	log.Printf("reportGeneration job=%s type=%s format=%s user=%s", job.ID, p.ReportType, p.Format, job.UserID)
-	// TODO: generate report and upload to storage
+func (w *Worker) handleExportCSV(job *Job) error {
+	ctx := context.Background()
+	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
+		return fmt.Errorf("exportCSV job=%s: failed to mark running: %w", job.ID, err)
+	}
+	log.Printf("exportCSV job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
+	time.Sleep(2 * time.Second)
+	if err := w.repo.MarkFailed(ctx, job.ID, "Failed to export CSV"); err != nil {
+		return fmt.Errorf("exportCSV job=%s: failed to mark failed: %w", job.ID, err)
+	}
+	w.publishStatusEvent(ctx, job, jobs.JobStatusFailed)
+	log.Printf("exportCSV job=%s failed", job.ID)
 	return nil
 }

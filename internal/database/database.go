@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"pulseDashboard/internal/config"
+	"jobflow/internal/config"
 )
 
 func ConnectDB() (*gorm.DB, error) {

@@ -1,9 +1,9 @@
-package routes
+﻿package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"pulseDashboard/internal/auth"
-	"pulseDashboard/internal/middleware"
+	"jobflow/internal/auth"
+	"jobflow/internal/middleware"
 )
 
 func RegisterAuthRoutes(r *gin.Engine, h *auth.Handler, jtiStore *auth.JTIStore) {

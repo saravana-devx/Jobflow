@@ -1,4 +1,4 @@
-package jobs
+﻿package jobs
 
 import (
 	"context"
@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"gorm.io/gorm"
-	"pulseDashboard/internal/rabbitmq"
+	"jobflow/internal/rabbitmq"
 )
 
 type Service struct {
@@ -34,10 +35,11 @@ func (s *Service) publishJob(ctx context.Context, job *Job) error {
 	if err != nil {
 		return fmt.Errorf("marshal job for publish: %w", err)
 	}
-	if err := s.mq.Publish(ctx, rabbitmq.QueueJobs, payload); err != nil {
+	delay := time.Until(job.ScheduledAt)
+	if err := s.mq.PublishDelayed(ctx, rabbitmq.QueueJobs, payload, delay); err != nil {
 		return err
 	}
-	log.Printf("published job to queue: id=%s queue=%s", job.ID, rabbitmq.QueueJobs)
+	log.Printf("published job: id=%s delay=%s", job.ID, delay.Round(time.Second))
 	return nil
 }
 

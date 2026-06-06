@@ -1,11 +1,11 @@
-package redis
+﻿package redis
 
 import (
 	"sync"
 
 	"github.com/redis/go-redis/v9"
 
-	"pulseDashboard/internal/config"
+	"jobflow/internal/config"
 )
 
 type Redis struct {

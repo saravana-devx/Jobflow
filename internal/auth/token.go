@@ -1,4 +1,4 @@
-package auth
+﻿package auth
 
 import (
 	"crypto/rand"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"pulseDashboard/internal/config"
+	"jobflow/internal/config"
 )
 
 const (

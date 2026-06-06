@@ -1,4 +1,4 @@
-package jobs
+﻿package jobs
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"pulseDashboard/internal/auth"
-	"pulseDashboard/internal/httpx"
+	"jobflow/internal/auth"
+	"jobflow/internal/httpx"
 )
 
 // msgJobIDRequired is jobs-specific, so it stays in this package rather than

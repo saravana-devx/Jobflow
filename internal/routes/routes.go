@@ -1,17 +1,17 @@
-package routes
+﻿package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
-	"pulseDashboard/internal/auth"
-	"pulseDashboard/internal/jobs"
-	"pulseDashboard/internal/rabbitmq"
-	"pulseDashboard/internal/redis"
+	"jobflow/internal/auth"
+	"jobflow/internal/health"
+	"jobflow/internal/jobs"
+	"jobflow/internal/sse"
 )
 
-func Register(r *gin.Engine, authHandler *auth.Handler, jobsHandler *jobs.Handler, jtiStore *auth.JTIStore, db *gorm.DB, rdb *redis.Redis, mq *rabbitmq.RabbitMQ) {
-	RegisterHealthRoute(r, db, rdb, mq)
+func Register(r *gin.Engine, healthHandler *health.Handler, authHandler *auth.Handler, jobsHandler *jobs.Handler, sseHandler *sse.Handler, jtiStore *auth.JTIStore) {
+	RegisterHealthRoute(r, healthHandler)
 	RegisterAuthRoutes(r, authHandler, jtiStore)
 	RegisterJobsRoutes(r, jobsHandler, jtiStore)
+	RegisterSSERoutes(r, sseHandler)
 }

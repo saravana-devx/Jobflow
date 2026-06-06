@@ -9,13 +9,14 @@ import (
 
 // QueueConfig holds the declaration options for a single queue.
 type QueueConfig struct {
-	Name       string
-	Durable    bool
-	AutoDelete bool   // delete when the last consumer disconnects;
-	Exclusive  bool   // Only the connection that created the queue can use it
-	Type       string // amqp.QueueTypeQuorum | amqp.QueueTypeClassic | amqp.QueueTypeStream
-	DLXName    string // dead-letter exchange; empty = disabled
-	MessageTTL int64  // per-message TTL in milliseconds; 0 = no TTL
+	Name               string
+	Durable            bool
+	AutoDelete         bool   // delete when the last consumer disconnects
+	Exclusive          bool   // only the connection that created the queue can use it
+	Type               string // amqp.QueueTypeQuorum | amqp.QueueTypeClassic | amqp.QueueTypeStream
+	DLXName            string // dead-letter exchange; empty = disabled
+	MessageTTL         int64  // per-message TTL in milliseconds; 0 = no TTL
+	UseDelayedExchange bool   // declare x-delayed-message exchange and bind this queue to it
 }
 
 // DefaultQueueConfig returns a durable quorum queue config — the right default
@@ -46,7 +47,7 @@ func (r *RabbitMQ) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
 		cfg.Durable,
 		cfg.AutoDelete,
 		cfg.Exclusive,
-		false, // no-wait: always wait for the broker's confirm
+		false,
 		args,
 	)
 	if err != nil {
@@ -57,11 +58,49 @@ func (r *RabbitMQ) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
 	return q, nil
 }
 
+// DeclareDelayedExchange declares an x-delayed-message exchange and binds
+// queueName to it. Publishers send to the exchange with an x-delay header
+// (milliseconds); the broker holds the message and routes it to the queue
+// after the delay expires. delay=0 is immediate delivery.
+func (r *RabbitMQ) DeclareDelayedExchange(queueName string) error {
+	exchangeName := queueName + ".delayed"
+
+	err := r.Channel.ExchangeDeclare(
+		exchangeName,
+		"x-delayed-message",
+		true,  // durable
+		false, // auto-delete
+		false, // internal
+		false, // no-wait
+		amqp.Table{
+			"x-delayed-type": "direct",
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("declare delayed exchange %q: %w", exchangeName, err)
+	}
+
+	// Bind the queue so messages routed via the exchange land in the right queue.
+	if err := r.Channel.QueueBind(queueName, queueName, exchangeName, false, nil); err != nil {
+		return fmt.Errorf("bind queue %q to exchange %q: %w", queueName, exchangeName, err)
+	}
+
+	log.Printf("delayed exchange declared: exchange=%s bound to queue=%s", exchangeName, queueName)
+	return nil
+}
+
 // InitializeQueues declares every queue in cfgs, stopping on the first error.
+// If a config has UseDelayedExchange set, the matching delayed exchange is also
+// declared and bound automatically.
 func (r *RabbitMQ) InitializeQueues(cfgs []QueueConfig) error {
 	for _, cfg := range cfgs {
 		if _, err := r.DeclareQueue(cfg); err != nil {
 			return err
+		}
+		if cfg.UseDelayedExchange {
+			if err := r.DeclareDelayedExchange(cfg.Name); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

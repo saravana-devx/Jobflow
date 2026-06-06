@@ -1,4 +1,4 @@
-package rabbitmq
+﻿package rabbitmq
 
 import (
 	"log"
@@ -7,7 +7,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"pulseDashboard/internal/config"
+	"jobflow/internal/config"
 )
 
 // Connection retry settings. RabbitMQ takes ~20s to boot and its AMQP listener

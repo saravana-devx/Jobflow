@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"pulseDashboard/internal/auth"
-	"pulseDashboard/internal/httpx"
+	"jobflow/internal/auth"
+	"jobflow/internal/httpx"
 )
 
 func RequireAuth(jtiStore *auth.JTIStore) gin.HandlerFunc {

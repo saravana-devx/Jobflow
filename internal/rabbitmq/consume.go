@@ -2,37 +2,50 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 )
 
+// Consume registers one consumer goroutine on queueName. Each call opens its
+// own AMQP channel so Ack/Nack calls never race across concurrent consumers.
+// Call Consume N times to run N parallel consumers.
 func (r *RabbitMQ) Consume(ctx context.Context, queueName string, maxRetries int, handler func([]byte) error) error {
-	// Process one message at a time
-	if err := r.Channel.Qos(1, 0, false); err != nil {
-		return err
+	ch, err := r.Conn.Channel()
+	if err != nil {
+		return fmt.Errorf("open consumer channel: %w", err)
 	}
 
-	msgs, err := r.Channel.Consume(
+	// Prefetch 1: the broker delivers the next message only after the consumer
+	// acks the current one. This ensures fair dispatch across multiple consumers.
+	if err := ch.Qos(1, 0, false); err != nil {
+		_ = ch.Close()
+		return fmt.Errorf("set qos: %w", err)
+	}
+
+	msgs, err := ch.Consume(
 		queueName,
-		"",    // consumer
-		false, // auto-ack
+		"",    // consumer tag — broker assigns a unique one
+		false, // auto-ack: we ack manually after successful processing
 		false, // exclusive
 		false, // no-local
 		false, // no-wait
 		nil,
 	)
 	if err != nil {
-		return err
+		_ = ch.Close()
+		return fmt.Errorf("start consume on %q: %w", queueName, err)
 	}
 
 	go func() {
+		defer ch.Close()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case msg, ok := <-msgs:
 				if !ok {
-					log.Println("Message channel closed")
+					log.Printf("consumer channel closed for queue=%s", queueName)
 					return
 				}
 
@@ -50,7 +63,7 @@ func (r *RabbitMQ) Consume(ctx context.Context, queueName string, maxRetries int
 				}
 
 				if lastErr != nil {
-					// All retries exhausted — discard so the message doesn't loop forever.
+					// All retries exhausted — dead-letter and move on.
 					_ = msg.Nack(false, false)
 				} else {
 					_ = msg.Ack(false)

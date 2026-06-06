@@ -1,4 +1,4 @@
-package auth
+﻿package auth
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"pulseDashboard/internal/httpx"
+	"jobflow/internal/httpx"
 )
 
 type Handler struct {

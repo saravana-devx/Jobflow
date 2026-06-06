@@ -31,6 +31,10 @@ type Config struct {
 	RabbitMQUser  string
 	RabbitMQPass  string
 	RabbitMQVHost string
+
+	// RateLimit
+	RateLimitRate     int
+	RateLimitCapacity int
 }
 
 var cfg *Config
@@ -63,10 +67,18 @@ func Load() error {
 		RabbitMQUser:     viper.GetString("RABBITMQ_DEFAULT_USER"),
 		RabbitMQPass:     viper.GetString("RABBITMQ_DEFAULT_PASS"),
 		RabbitMQVHost:    viper.GetString("RABBITMQ_DEFAULT_VHOST"),
+		RateLimitRate:    viper.GetInt("RATE_LIMIT_RATE"),
+		RateLimitCapacity: viper.GetInt("RATE_LIMIT_CAPACITY"),
 	}
 
 	if c.RedisAddr == "" {
 		c.RedisAddr = "localhost:6379"
+	}
+	if c.RateLimitRate == 0 {
+		c.RateLimitRate = 2
+	}
+	if c.RateLimitCapacity == 0 {
+		c.RateLimitCapacity = 5
 	}
 
 	if err := c.validate(); err != nil {

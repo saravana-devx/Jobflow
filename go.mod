@@ -1,4 +1,4 @@
-module pulseDashboard
+module jobflow
 
 go 1.26.2
 

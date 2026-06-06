@@ -1,10 +1,10 @@
-package auth
+﻿package auth
 
 // import (
 // 	"context"
 // 	"time"
 
-// 	"pulseDashboard/internal/redis"
+// 	"jobflow/internal/redis"
 // )
 
 // type TokenStore struct {

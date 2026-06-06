@@ -1,18 +1,25 @@
-package main
+﻿package main
 
 import (
-    "log"
-    "pulseDashboard/internal/config"
-    "pulseDashboard/internal/rabbitmq"
-    "pulseDashboard/internal/worker"
+	"log"
+	"jobflow/internal/config"
+	"jobflow/internal/database"
+	"jobflow/internal/rabbitmq"
+	"jobflow/internal/redis"
+	"jobflow/internal/worker"
 )
 
 func main() {
-    if err := config.Load(); err != nil {
-        log.Fatalf("config load failed: %v", err)
-    }
+	if err := config.Load(); err != nil {
+		log.Fatalf("config load failed: %v", err)
+	}
 
-    mq := rabbitmq.NewRabbitMQConnection()
-    w := worker.New(mq)
-    w.Start()
+	mq := rabbitmq.NewRabbitMQConnection()
+	db, err := database.ConnectDB()
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	rdb := redis.NewRedis()
+	w := worker.New(mq, db, rdb)
+	w.Start()
 }
