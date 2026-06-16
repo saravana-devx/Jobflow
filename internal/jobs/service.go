@@ -1,4 +1,4 @@
-﻿package jobs
+package jobs
 
 import (
 	"context"
@@ -39,12 +39,19 @@ func (s *Service) publishJob(ctx context.Context, job *Job) error {
 	if err := s.mq.PublishDelayed(ctx, rabbitmq.QueueJobs, payload, delay); err != nil {
 		return err
 	}
+
+	queuedAt := time.Now()
+	if err := s.repo.MarkQueued(ctx, job.ID, queuedAt); err != nil {
+		log.Printf("job=%s: published but failed to record queued_at: %v", job.ID, err)
+	} else {
+		job.QueuedAt = &queuedAt
+	}
+
 	log.Printf("published job: id=%s delay=%s", job.ID, delay.Round(time.Second))
 	return nil
 }
 
 func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (*CreateJobResult, error) {
-
 	if req.MaxRetries != nil && *req.MaxRetries > 10 {
 		return nil, fmt.Errorf("%w: max retries must be 10 or less", ErrInvalidJobInput)
 	}
@@ -55,15 +62,12 @@ func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (
 		Payload: req.Payload,
 	}
 
-	// safe assign optional fields
 	if req.MaxRetries != nil {
 		job.MaxRetries = *req.MaxRetries
 	}
-
 	if req.ScheduledAt != nil {
 		job.ScheduledAt = *req.ScheduledAt
 	}
-
 	if req.Priority != nil {
 		job.Priority = *req.Priority
 	}
@@ -74,7 +78,7 @@ func (s *Service) CreateJobService(ctx context.Context, req *CreateJobRequest) (
 	}
 
 	if err := s.publishJob(ctx, createdJob); err != nil {
-		return nil, fmt.Errorf("publish job: %w", err)
+		log.Printf("job=%s: publish failed, will be retried by reconciler: %v", createdJob.ID, err)
 	}
 
 	return &CreateJobResult{Job: createdJob}, nil
@@ -94,18 +98,15 @@ func (s *Service) CreateJobsService(ctx context.Context, req *[]CreateJobRequest
 			Type:    r.Type,
 			Payload: r.Payload,
 		}
-
 		if r.MaxRetries != nil {
 			job.MaxRetries = *r.MaxRetries
 		}
 		if r.ScheduledAt != nil {
 			job.ScheduledAt = *r.ScheduledAt
 		}
-
 		if r.Priority != nil {
 			job.Priority = *r.Priority
 		}
-
 		jobs = append(jobs, job)
 	}
 
@@ -117,12 +118,32 @@ func (s *Service) CreateJobsService(ctx context.Context, req *[]CreateJobRequest
 	result := make([]CreateJobResult, 0, len(createdJobs))
 	for _, j := range createdJobs {
 		if err := s.publishJob(ctx, j); err != nil {
-			return nil, fmt.Errorf("publish job %s: %w", j.ID, err)
+			log.Printf("job=%s: publish failed, will be retried by reconciler: %v", j.ID, err)
 		}
 		result = append(result, CreateJobResult{Job: j})
 	}
 
 	return &result, nil
+}
+
+const queuePublishGrace = 2 * time.Minute
+
+func (s *Service) RepublishStuckJobs(ctx context.Context) error {
+	cutoff := time.Now().Add(-queuePublishGrace)
+	stuck, err := s.repo.GetUnqueuedPendingJobs(ctx, cutoff)
+	if err != nil {
+		return fmt.Errorf("load unqueued jobs: %w", err)
+	}
+
+	for _, job := range stuck {
+		if err := s.publishJob(ctx, job); err != nil {
+			log.Printf("job=%s: reconciler republish failed: %v", job.ID, err)
+			continue
+		}
+		log.Printf("job=%s: republished by reconciler", job.ID)
+	}
+
+	return nil
 }
 
 func (s *Service) GetJobByIdService(ctx context.Context, id string) (*GetJobByIdResult, error) {
@@ -144,12 +165,10 @@ func (s *Service) GetAllJobsService(ctx context.Context, userID string) (*GetAll
 		}
 		return nil, fmt.Errorf("%w: %v", ErrToGetAllJobs, err)
 	}
-
 	return &GetAllJobsResult{Jobs: result}, nil
 }
 
 func (s *Service) UpdateJobService(ctx context.Context, id string, userID string, req *UpdateJobRequest) (*Job, error) {
-
 	job, err := s.repo.GetJobByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -166,9 +185,6 @@ func (s *Service) UpdateJobService(ctx context.Context, id string, userID string
 		return nil, fmt.Errorf("%w: max retries must be 10 or less", ErrInvalidJobInput)
 	}
 
-	// Merge: only fields present in the request overwrite the loaded job.
-	// UserID and all unmanaged fields (Status, Attempts, timestamps, ...)
-	// stay as loaded, so a full-row Save in the repo can't wipe them.
 	if req.Type != "" {
 		job.Type = req.Type
 	}
@@ -191,7 +207,6 @@ func (s *Service) UpdateJobService(ctx context.Context, id string, userID string
 	}
 
 	return result, nil
-
 }
 
 func (s *Service) DeleteJobService(ctx context.Context, id string) error {

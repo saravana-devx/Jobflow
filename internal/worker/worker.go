@@ -1,4 +1,4 @@
-﻿package worker
+package worker
 
 import (
 	"context"
@@ -15,9 +15,8 @@ import (
 	redisx "jobflow/internal/redis"
 )
 
-// numConsumers is the number of parallel AMQP consumers on the jobs queue.
-// Each consumer gets its own channel, so they don't block each other.
 const numConsumers = 5
+const defaultMaxRetries = 3
 
 type Worker struct {
 	mq       *rabbitmq.RabbitMQ
@@ -47,7 +46,7 @@ func (w *Worker) Start() {
 	}()
 
 	for range numConsumers {
-		if err := w.mq.Consume(ctx, rabbitmq.QueueJobs, 3, func(body []byte) error {
+		if err := w.mq.Consume(ctx, rabbitmq.QueueJobs, jobMaxRetries, func(body []byte) error {
 			wg.Add(1)
 			defer wg.Done()
 			return w.handleJob(body)

@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"time"
+
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -37,6 +38,7 @@ type Job struct {
 	MaxRetries  int            `gorm:"not null;default:3"`
 	ErrorMsg    *string
 	ScheduledAt time.Time      `gorm:"not null;default:now()"`
+	QueuedAt    *time.Time
 	StartedAt   *time.Time
 	CompletedAt *time.Time
 	CreatedAt   time.Time      `gorm:"not null;default:now()"`

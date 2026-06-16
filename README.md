@@ -140,8 +140,9 @@ internal/
   auth/         → JWT auth, token store, JTI revocation
   bootstrap/    → Dependency wiring
   config/       → Env-based config
-  cron/         → Refresh token cleanup job
+  cron/         → Refresh token cleanup + job reconciler (dual-write recovery)
   database/     → PostgreSQL connection
+  email/        → Email module scaffold (provider integration TODO)
   health/       → Health check handler
   jobs/         → Job model, service, handler, repository
   middleware/   → Auth + rate limit middleware
@@ -151,7 +152,67 @@ internal/
   routes/       → Route registration
   sse/          → SSE client manager, handler, subscriber
   worker/       → Job handlers, worker repository
+pkg/
+  logger/       → Leveled logging wrapper (swap-in point for slog/zerolog)
 ```
+
+## Known Limitations / Future Work
+
+**No dead-letter queue.** `internal/rabbitmq/consume.go` correctly `Nack`s a
+message with `requeue=false` once a job exhausts `MaxRetries`, but none of the
+queues in `internal/rabbitmq/queues.go` set `DLXName` (the field already exists
+on `QueueConfig`). With no dead-letter exchange bound, RabbitMQ simply drops
+these messages — a job that fails every retry disappears with nothing but a log
+line, and there's no way to inspect or replay it. To close this gap: configure
+`DLXName` on `QueueJobs`, declare a `jobs.dlq` queue bound to that exchange, and
+add monitoring/an admin endpoint to inspect and optionally replay dead-lettered
+jobs.
+
+**Job handlers are simulated.** `internal/worker/handler.go`'s `handleSendEmail`,
+`handleReportGeneration`, `handleResizeImage`, and `handleExportCSV` use
+`time.Sleep` as a stand-in for real work. To make these real, replace each
+`handleXxx` body with the actual integration (SMTP/email provider, report
+renderer, image processing library, CSV writer to object storage), and consider
+moving from the current `switch job.Type` in `handleJob` to a
+`map[JobType]func(*Job) error` registry so adding a new job type doesn't require
+editing the dispatch switch.
+
+**Observability is minimal.** ClickHouse is listed as the planned log/event
+store, but it is not wired up yet, and there is currently **no structured
+logging and no metrics**. Logging is plain `log.Printf` (unleveled, unstructured
+text). A `pkg/logger` leveled wrapper now exists as the seam to fix this: today
+it formats to stdlib `log`, but because every call site can route through it,
+swapping the backend to structured JSON (`log/slog`, zerolog, or zap) is a
+one-file change. Next steps for production readiness: adopt `pkg/logger`
+everywhere, emit request/trace IDs, add Prometheus metrics (queue depth, job
+latency, retry/DLQ counts), and ship job lifecycle events to ClickHouse for
+historical analytics.
+
+**Rate limiting is global, not per-user.** `internal/ratelimit` is a single
+token bucket shared by every request (`middleware.RateLimit` applies one
+`*TokenBucket` to the whole app). That protects the service as a whole but lets
+one noisy client consume everyone's budget. To make it per-user: key buckets by
+identity — `map[userID]*TokenBucket` (with eviction of idle entries), or extract
+the user/IP from the request and look up its bucket in the middleware. For a
+horizontally-scaled deployment (multiple server instances), an in-memory map
+isn't shared across instances, so move the counter to **Redis** (e.g.
+`INCR` + `EXPIRE` per key, or a Redis-backed token/leaky bucket) so the limit is
+enforced cluster-wide.
+
+## Testing
+
+```bash
+# Unit tests (no external services needed)
+go test ./...
+
+# Integration tests (require Postgres + RabbitMQ from docker-compose)
+go test -tags=integration ./...
+```
+
+- `internal/ratelimit/token_bucket_test.go` — table-driven unit tests for the
+  token bucket (initial capacity, refill, capacity cap).
+- `internal/jobs/service_integration_test.go` — integration test scaffolding for
+  job creation, gated behind the `integration` build tag.
 
 ## Environment Variables
 

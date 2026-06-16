@@ -1,4 +1,4 @@
-﻿/**
+/**
 * * Server entry point
  */
 
@@ -29,6 +29,7 @@ func main() {
 
 	go app.SSESubscriber.Start(context.Background(), "user:*:jobs")
 	go app.RefreshTokenCleaner.Start(context.Background())
+	go app.JobReconciler.Start(context.Background())
 
 	srv := &http.Server{
 		Addr:    ":8080",

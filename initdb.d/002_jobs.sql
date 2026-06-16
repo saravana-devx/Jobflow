@@ -7,7 +7,7 @@ DO $$ BEGIN
         'error'
     );
 EXCEPTION
-    WHEN duplicate_object THEN NULL;  -- if type already exists, skip silently
+    WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     max_retries  INT         NOT NULL DEFAULT 3,
     error_msg    TEXT,
     scheduled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    queued_at    TIMESTAMPTZ,
     started_at   TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -36,15 +37,19 @@ CREATE TABLE IF NOT EXISTS jobs_2026_05_01 PARTITION OF jobs
 CREATE TABLE IF NOT EXISTS jobs_2026_05_02 PARTITION OF jobs
     FOR VALUES FROM ('2026-05-02') TO ('2026-05-03');
 
--- catch-all so inserts whose created_at falls outside declared ranges don't fail
 CREATE TABLE IF NOT EXISTS jobs_default PARTITION OF jobs DEFAULT;
 
 CREATE INDEX ON jobs (status, scheduled_at)
 WHERE
     status = 'pending';
 
+CREATE INDEX ON jobs (scheduled_at)
+WHERE
+    status = 'pending' AND queued_at IS NULL;
+
 CREATE INDEX ON jobs (worker_id)
 WHERE
     worker_id IS NOT NULL;
+
 CREATE INDEX ON jobs (deleted_at)
 WHERE deleted_at IS NULL;

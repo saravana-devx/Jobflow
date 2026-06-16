@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -49,9 +50,7 @@ func (r *JobsRepository) GetAllJobs(ctx context.Context, userID string) ([]*Job,
 }
 
 func (r *JobsRepository) UpdateJob(ctx context.Context, id string, job *Job) (*Job, error) {
-
 	result := r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Updates(&job)
-
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -60,4 +59,19 @@ func (r *JobsRepository) UpdateJob(ctx context.Context, id string, job *Job) (*J
 
 func (r *JobsRepository) DeleteJob(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&Job{}).Error
+}
+
+func (r *JobsRepository) GetUnqueuedPendingJobs(ctx context.Context, before time.Time) ([]*Job, error) {
+	var jobs []*Job
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND queued_at IS NULL AND scheduled_at <= ?", JobStatusPending, before).
+		Find(&jobs).Error
+	if err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+func (r *JobsRepository) MarkQueued(ctx context.Context, id string, queuedAt time.Time) error {
+	return r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Update("queued_at", queuedAt).Error
 }

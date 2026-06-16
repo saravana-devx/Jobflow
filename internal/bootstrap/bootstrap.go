@@ -1,4 +1,4 @@
-﻿package bootstrap
+package bootstrap
 
 import (
 	"github.com/gin-gonic/gin"
@@ -19,13 +19,14 @@ import (
 )
 
 type App struct {
-	Router               *gin.Engine
-	DB                   *gorm.DB
-	Redis                *redis.Redis
-	RabbitMQ             *rabbitmq.RabbitMQ
-	TokenBucket          *ratelimit.TokenBucket
-	SSESubscriber        *sse.Subscriber
-	RefreshTokenCleaner  *cron.RefreshTokenCleaner
+	Router              *gin.Engine
+	DB                  *gorm.DB
+	Redis               *redis.Redis
+	RabbitMQ            *rabbitmq.RabbitMQ
+	TokenBucket         *ratelimit.TokenBucket
+	SSESubscriber       *sse.Subscriber
+	RefreshTokenCleaner *cron.RefreshTokenCleaner
+	JobReconciler       *cron.JobReconciler
 }
 
 func New() (*App, error) {
@@ -54,22 +55,20 @@ func New() (*App, error) {
 	sseSubscriber := sse.NewSubscriber(rdb, sseManager)
 
 	tokenCleaner := cron.NewRefreshTokenCleaner(db)
+	jobReconciler := cron.NewJobReconciler(jobsService)
 	healthHandler := health.NewHandler(db, rdb, mq)
 
 	cfg := config.Get()
 	bucket := ratelimit.NewTokenBucket(cfg.RateLimitRate, cfg.RateLimitCapacity)
 
 	router := gin.Default()
-	// No reverse proxy in front yet — don't read X-Forwarded-* headers from
-	// arbitrary clients. When deploying behind nginx/ALB/Cloudflare, replace
-	// this with SetTrustedProxies(<known proxy CIDRs>).
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return nil, err
 	}
 	router.Use(middleware.RateLimit(bucket))
 	routes.Register(router, healthHandler, authHandler, jobsHandler, sseHandler, jtiStore)
 
-	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: mq, TokenBucket: bucket, SSESubscriber: sseSubscriber, RefreshTokenCleaner: tokenCleaner}, nil
+	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: mq, TokenBucket: bucket, SSESubscriber: sseSubscriber, RefreshTokenCleaner: tokenCleaner, JobReconciler: jobReconciler}, nil
 }
 
 func (a *App) Stop() {

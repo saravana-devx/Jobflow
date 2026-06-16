@@ -1,4 +1,4 @@
-﻿package worker
+package worker
 
 import (
 	"context"
@@ -16,6 +16,14 @@ type jobStatusEvent struct {
 	JobID  string `json:"jobID"`
 	Status string `json:"status"`
 	UserID string `json:"userID"`
+}
+
+func jobMaxRetries(body []byte) int {
+	var job Job
+	if err := job.Unmarshal(body); err != nil {
+		return defaultMaxRetries
+	}
+	return job.MaxRetries
 }
 
 func (w *Worker) handleJob(body []byte) error {

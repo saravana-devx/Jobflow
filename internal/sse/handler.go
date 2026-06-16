@@ -1,4 +1,3 @@
-// File: internal/sse/handler.go
 package sse
 
 import (
@@ -15,8 +14,6 @@ func NewHandler(manager *ClientManager) *Handler {
 	return &Handler{manager: manager}
 }
 
-// SSEStream registers the caller as an SSE client and streams events until
-// the request context is cancelled (client disconnects or server shuts down).
 func (h *Handler) SSEStream(c *gin.Context) {
 	userId := c.Param("userId")
 
@@ -25,8 +22,8 @@ func (h *Handler) SSEStream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("Access-Control-Allow-Origin", "*")
 
-	clientCh := h.manager.AddClient(userId)
-	defer h.manager.RemoveClient(userId)
+	connID, clientCh := h.manager.AddClient(userId)
+	defer h.manager.RemoveClient(userId, connID)
 
 	c.Stream(func(w io.Writer) bool {
 		select {
