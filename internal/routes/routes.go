@@ -13,5 +13,5 @@ func Register(r *gin.Engine, healthHandler *health.Handler, authHandler *auth.Ha
 	RegisterHealthRoute(r, healthHandler)
 	RegisterAuthRoutes(r, authHandler, jtiStore)
 	RegisterJobsRoutes(r, jobsHandler, jtiStore)
-	RegisterSSERoutes(r, sseHandler)
+	RegisterSSERoutes(r, sseHandler, jtiStore)
 }

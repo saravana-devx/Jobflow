@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
-func (r *RabbitMQ) Consume(ctx context.Context, queueName string, getMaxRetries func([]byte) int, handler func([]byte) error) error {
+func (r *RabbitMQ) Consume(ctx context.Context, queueName string, wg *sync.WaitGroup, getMaxRetries func([]byte) int, handler func([]byte) error) error {
 	ch, err := r.Conn.Channel()
 	if err != nil {
 		return fmt.Errorf("open consumer channel: %w", err)
@@ -44,6 +45,7 @@ func (r *RabbitMQ) Consume(ctx context.Context, queueName string, getMaxRetries 
 					return
 				}
 
+				wg.Add(1)
 				maxRetries := getMaxRetries(msg.Body)
 
 				var lastErr error
@@ -57,6 +59,7 @@ func (r *RabbitMQ) Consume(ctx context.Context, queueName string, getMaxRetries 
 					}
 					log.Printf("queue=%s attempt %d failed: %v", queueName, attempt+1, lastErr)
 				}
+				wg.Done()
 
 				if lastErr != nil {
 					_ = msg.Nack(false, false)

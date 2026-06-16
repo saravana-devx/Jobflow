@@ -46,9 +46,7 @@ func (w *Worker) Start() {
 	}()
 
 	for range numConsumers {
-		if err := w.mq.Consume(ctx, rabbitmq.QueueJobs, jobMaxRetries, func(body []byte) error {
-			wg.Add(1)
-			defer wg.Done()
+		if err := w.mq.Consume(ctx, rabbitmq.QueueJobs, &wg, jobMaxRetries, func(body []byte) error {
 			return w.handleJob(body)
 		}); err != nil {
 			log.Fatalf("failed to start consumer: %v", err)

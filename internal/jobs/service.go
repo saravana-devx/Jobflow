@@ -209,12 +209,20 @@ func (s *Service) UpdateJobService(ctx context.Context, id string, userID string
 	return result, nil
 }
 
-func (s *Service) DeleteJobService(ctx context.Context, id string) error {
-	err := s.repo.DeleteJob(ctx, id)
+func (s *Service) DeleteJobService(ctx context.Context, id string, userID string) error {
+	job, err := s.repo.GetJobByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrJobNotFound
 		}
+		return fmt.Errorf("%w: %v", ErrToGetJob, err)
+	}
+
+	if job.UserID != userID {
+		return ErrUnauthorized
+	}
+
+	if err := s.repo.DeleteJob(ctx, id); err != nil {
 		return fmt.Errorf("%w: %v", ErrToDeleteJob, err)
 	}
 	return nil

@@ -2,8 +2,12 @@ package sse
 
 import (
 	"io"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"jobflow/internal/auth"
+	"jobflow/internal/httpx"
 )
 
 type Handler struct {
@@ -16,6 +20,12 @@ func NewHandler(manager *ClientManager) *Handler {
 
 func (h *Handler) SSEStream(c *gin.Context) {
 	userId := c.Param("userId")
+
+	tokenUserID, ok := auth.UserIDFromContext(c)
+	if !ok || tokenUserID != userId {
+		httpx.Error(c, http.StatusForbidden, "forbidden")
+		return
+	}
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")

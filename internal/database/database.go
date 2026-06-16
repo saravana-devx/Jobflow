@@ -2,6 +2,7 @@
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -27,16 +28,17 @@ func ConnectDB() (*gorm.DB, error) {
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		fmt.Println("get sql db: %w", err)
+		return nil, fmt.Errorf("get sql db: %w", err)
 	}
 	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
-	if err = sqlDB.Ping(); err != nil {
-		fmt.Println("postgres ping : %w", err)
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
 
-	fmt.Println("Database connected successfully...")
+	log.Println("postgres connected successfully")
 	return db, nil
 }

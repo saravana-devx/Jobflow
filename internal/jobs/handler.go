@@ -183,14 +183,22 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 		return
 	}
 
+	userID, ok := auth.UserIDFromContext(c)
+	if !ok {
+		httpx.Error(c, http.StatusUnauthorized, httpx.MsgUnauthorized)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	err := h.svc.DeleteJobService(ctx, id)
+	err := h.svc.DeleteJobService(ctx, id, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrJobNotFound):
 			httpx.Error(c, http.StatusNotFound, ErrJobNotFound.Error())
+		case errors.Is(err, ErrUnauthorized):
+			httpx.Error(c, http.StatusForbidden, ErrUnauthorized.Error())
 		default:
 			httpx.Error(c, http.StatusInternalServerError, ErrToDeleteJob.Error())
 		}
