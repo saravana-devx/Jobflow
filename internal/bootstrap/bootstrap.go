@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -10,6 +12,7 @@ import (
 	"jobflow/internal/database"
 	"jobflow/internal/health"
 	"jobflow/internal/jobs"
+	"jobflow/internal/logger"
 	"jobflow/internal/middleware"
 	"jobflow/internal/rabbitmq"
 	"jobflow/internal/ratelimit"
@@ -27,9 +30,12 @@ type App struct {
 	SSESubscriber       *sse.Subscriber
 	RefreshTokenCleaner *cron.RefreshTokenCleaner
 	JobReconciler       *cron.JobReconciler
+	PartitionMaintainer *cron.JobPartitionMaintainer
 }
 
 func New() (*App, error) {
+	logger.Init(slog.LevelInfo)
+
 	db, err := database.ConnectDB()
 	if err != nil {
 		return nil, err
@@ -54,8 +60,9 @@ func New() (*App, error) {
 	sseHandler := sse.NewHandler(sseManager)
 	sseSubscriber := sse.NewSubscriber(rdb, sseManager)
 
-	tokenCleaner := cron.NewRefreshTokenCleaner(db)
-	jobReconciler := cron.NewJobReconciler(jobsService)
+	tokenCleaner := cron.NewRefreshTokenCleaner(db, rdb)
+	jobReconciler := cron.NewJobReconciler(jobsService, rdb)
+	partitionMaintainer := cron.NewJobPartitionMaintainer(db, rdb)
 	healthHandler := health.NewHandler(db, rdb, mq)
 
 	cfg := config.Get()
@@ -68,7 +75,7 @@ func New() (*App, error) {
 	router.Use(middleware.RateLimit(bucket))
 	routes.Register(router, healthHandler, authHandler, jobsHandler, sseHandler, jtiStore)
 
-	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: mq, TokenBucket: bucket, SSESubscriber: sseSubscriber, RefreshTokenCleaner: tokenCleaner, JobReconciler: jobReconciler}, nil
+	return &App{Router: router, DB: db, Redis: rdb, RabbitMQ: mq, TokenBucket: bucket, SSESubscriber: sseSubscriber, RefreshTokenCleaner: tokenCleaner, JobReconciler: jobReconciler, PartitionMaintainer: partitionMaintainer}, nil
 }
 
 func (a *App) Stop() {

@@ -75,3 +75,26 @@ func (r *JobsRepository) GetUnqueuedPendingJobs(ctx context.Context, before time
 func (r *JobsRepository) MarkQueued(ctx context.Context, id string, queuedAt time.Time) error {
 	return r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Update("queued_at", queuedAt).Error
 }
+
+// GetStuckRunningJobs returns jobs stuck in 'running' past the cutoff — usually
+// because the worker that picked them up crashed before finishing.
+func (r *JobsRepository) GetStuckRunningJobs(ctx context.Context, before time.Time) ([]*Job, error) {
+	var jobs []*Job
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND started_at < ?", JobStatusRunning, before).
+		Find(&jobs).Error
+	if err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+// MarkFailed marks a job failed with an error message.
+func (r *JobsRepository) MarkFailed(ctx context.Context, id string, errMsg string) error {
+	return r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).
+		Updates(map[string]any{
+			"status":       JobStatusFailed,
+			"error_msg":    errMsg,
+			"completed_at": time.Now(),
+		}).Error
+}

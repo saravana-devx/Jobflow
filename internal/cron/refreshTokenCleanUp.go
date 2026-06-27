@@ -8,16 +8,21 @@ import (
 	"gorm.io/gorm"
 
 	"jobflow/internal/auth"
+	redisx "jobflow/internal/redis"
 )
 
 const cleanupInterval = 1 * time.Hour
 
+// hold the lease for most of the interval so only one replica runs the cleanup
+const cleanupLeaseTTL = 55 * time.Minute
+
 type RefreshTokenCleaner struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redisx.Redis
 }
 
-func NewRefreshTokenCleaner(db *gorm.DB) *RefreshTokenCleaner {
-	return &RefreshTokenCleaner{db: db}
+func NewRefreshTokenCleaner(db *gorm.DB, rdb *redisx.Redis) *RefreshTokenCleaner {
+	return &RefreshTokenCleaner{db: db, rdb: rdb}
 }
 
 func (c *RefreshTokenCleaner) Start(ctx context.Context) {
@@ -27,7 +32,9 @@ func (c *RefreshTokenCleaner) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			c.clean(ctx)
+			runIfLeader(ctx, c.rdb, "cron:refresh-token-cleaner", cleanupLeaseTTL, func() {
+				c.clean(ctx)
+			})
 		case <-ctx.Done():
 			log.Println("RefreshTokenCleaner stopped")
 			return

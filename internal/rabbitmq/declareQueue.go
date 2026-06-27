@@ -9,18 +9,18 @@ import (
 
 // QueueConfig holds the declaration options for a single queue.
 type QueueConfig struct {
-	Name               string
-	Durable            bool
-	AutoDelete         bool   // delete when the last consumer disconnects
-	Exclusive          bool   // only the connection that created the queue can use it
-	Type               string // amqp.QueueTypeQuorum | amqp.QueueTypeClassic | amqp.QueueTypeStream
-	DLXName            string // dead-letter exchange; empty = disabled
-	MessageTTL         int64  // per-message TTL in milliseconds; 0 = no TTL
-	UseDelayedExchange bool   // declare x-delayed-message exchange and bind this queue to it
+	Name                 string
+	Durable              bool
+	AutoDelete           bool   // delete when the last consumer disconnects
+	Exclusive            bool   // only the connection that created the queue can use it
+	Type                 string // amqp.QueueTypeQuorum | amqp.QueueTypeClassic | amqp.QueueTypeStream
+	DLXName              string // dead-letter exchange; empty = default exchange (route by queue name)
+	DeadLetterRoutingKey string // dead-letter target queue name; empty = no dead-lettering
+	MessageTTL           int64  // per-message TTL in milliseconds; 0 = no TTL
+	UseDelayedExchange   bool   // declare x-delayed-message exchange and bind this queue to it
 }
 
-// DefaultQueueConfig returns a durable quorum queue config — the right default
-// for production workloads (Raft-replicated, survives node failures).
+// DefaultQueueConfig returns a durable quorum queue (replicated, survives node loss)
 func DefaultQueueConfig(name string) QueueConfig {
 	return QueueConfig{
 		Name:    name,
@@ -35,7 +35,11 @@ func (r *RabbitMQ) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
 	args := amqp.Table{
 		amqp.QueueTypeArg: cfg.Type,
 	}
-	if cfg.DLXName != "" {
+	if cfg.DeadLetterRoutingKey != "" {
+		// route dead-letters via DLXName (empty = default exchange) to the DLQ
+		args["x-dead-letter-exchange"] = cfg.DLXName
+		args["x-dead-letter-routing-key"] = cfg.DeadLetterRoutingKey
+	} else if cfg.DLXName != "" {
 		args["x-dead-letter-exchange"] = cfg.DLXName
 	}
 	if cfg.MessageTTL > 0 {
@@ -58,10 +62,8 @@ func (r *RabbitMQ) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
 	return q, nil
 }
 
-// DeclareDelayedExchange declares an x-delayed-message exchange and binds
-// queueName to it. Publishers send to the exchange with an x-delay header
-// (milliseconds); the broker holds the message and routes it to the queue
-// after the delay expires. delay=0 is immediate delivery.
+// DeclareDelayedExchange sets up an x-delayed-message exchange bound to queueName.
+// publish with an x-delay header (ms) and the broker holds the message that long.
 func (r *RabbitMQ) DeclareDelayedExchange(queueName string) error {
 	exchangeName := queueName + ".delayed"
 
@@ -80,7 +82,7 @@ func (r *RabbitMQ) DeclareDelayedExchange(queueName string) error {
 		return fmt.Errorf("declare delayed exchange %q: %w", exchangeName, err)
 	}
 
-	// Bind the queue so messages routed via the exchange land in the right queue.
+	// bind the queue so routed messages land in it
 	if err := r.Channel.QueueBind(queueName, queueName, exchangeName, false, nil); err != nil {
 		return fmt.Errorf("bind queue %q to exchange %q: %w", queueName, exchangeName, err)
 	}
@@ -89,9 +91,8 @@ func (r *RabbitMQ) DeclareDelayedExchange(queueName string) error {
 	return nil
 }
 
-// InitializeQueues declares every queue in cfgs, stopping on the first error.
-// If a config has UseDelayedExchange set, the matching delayed exchange is also
-// declared and bound automatically.
+// InitializeQueues declares every queue in cfgs (and its delayed exchange if set),
+// stopping on the first error.
 func (r *RabbitMQ) InitializeQueues(cfgs []QueueConfig) error {
 	for _, cfg := range cfgs {
 		if _, err := r.DeclareQueue(cfg); err != nil {

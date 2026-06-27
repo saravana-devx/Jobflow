@@ -53,7 +53,7 @@ func (h *Handler) CreateJob(c *gin.Context) {
 		return
 	}
 
-	httpx.Success(c, http.StatusOK, "job created", result)
+	httpx.Success(c, http.StatusCreated, "job created", result)
 }
 
 func (h *Handler) CreateJobs(c *gin.Context) {
@@ -83,7 +83,7 @@ func (h *Handler) CreateJobs(c *gin.Context) {
 		return
 	}
 
-	httpx.Success(c, http.StatusOK, "jobs created", result)
+	httpx.Success(c, http.StatusCreated, "jobs created", result)
 }
 
 func (h *Handler) GetJobById(c *gin.Context) {

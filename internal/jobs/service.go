@@ -146,6 +146,41 @@ func (s *Service) RepublishStuckJobs(ctx context.Context) error {
 	return nil
 }
 
+// how long a job can sit in 'running' before we assume its worker died. must be
+// longer than any real job — it's a fixed window, not a heartbeat, so a job that
+// genuinely runs longer would get re-published as a duplicate.
+const stuckRunningGrace = 5 * time.Minute
+
+// ReapStuckJobs recovers jobs whose worker died mid-run (stuck in 'running').
+// each one is re-published to try again, or marked failed once it's out of
+// retries. re-publishing is safe because ClaimJob skips jobs that are already
+// done, so a duplicate won't run twice.
+func (s *Service) ReapStuckJobs(ctx context.Context) error {
+	cutoff := time.Now().Add(-stuckRunningGrace)
+	stuck, err := s.repo.GetStuckRunningJobs(ctx, cutoff)
+	if err != nil {
+		return fmt.Errorf("load stuck running jobs: %w", err)
+	}
+
+	for _, job := range stuck {
+		if job.Attempts >= job.MaxRetries {
+			if err := s.repo.MarkFailed(ctx, job.ID, "worker stalled; retries exhausted"); err != nil {
+				log.Printf("job=%s: reaper mark-failed: %v", job.ID, err)
+				continue
+			}
+			log.Printf("job=%s: reaper marked failed after stall (attempts=%d/%d)", job.ID, job.Attempts, job.MaxRetries)
+			continue
+		}
+		if err := s.publishJob(ctx, job); err != nil {
+			log.Printf("job=%s: reaper republish failed: %v", job.ID, err)
+			continue
+		}
+		log.Printf("job=%s: reaper re-published stalled job (attempts=%d/%d)", job.ID, job.Attempts, job.MaxRetries)
+	}
+
+	return nil
+}
+
 func (s *Service) GetJobByIdService(ctx context.Context, id string) (*GetJobByIdResult, error) {
 	result, err := s.repo.GetJobByID(ctx, id)
 	if err != nil {

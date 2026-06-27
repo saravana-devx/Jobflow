@@ -61,10 +61,31 @@ func (w *Worker) publishStatusEvent(ctx context.Context, job *Job, status jobs.J
 	}
 }
 
+// how long a 'running' job is treated as owned before another worker can reclaim
+// it. matches the reaper window; must be longer than any real job.
+const staleClaimGrace = 5 * time.Minute
+
+// claim tries to take the job for this worker. returns false if it's already
+// done or running somewhere else, so the caller just acks and skips it.
+func (w *Worker) claim(ctx context.Context, job *Job, kind string) (bool, error) {
+	claimed, err := w.repo.ClaimJob(ctx, job.ID, w.workerID, time.Now().Add(-staleClaimGrace))
+	if err != nil {
+		return false, fmt.Errorf("%s job=%s: claim failed: %w", kind, job.ID, err)
+	}
+	if !claimed {
+		log.Printf("%s job=%s: skipped, not claimable (duplicate or already handled)", kind, job.ID)
+	}
+	return claimed, nil
+}
+
 func (w *Worker) handleSendEmail(job *Job) error {
 	ctx := context.Background()
-	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
-		return fmt.Errorf("sendEmail job=%s: failed to mark running: %w", job.ID, err)
+	claimed, err := w.claim(ctx, job, "sendEmail")
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
 	}
 	log.Printf("sendEmail job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
 	time.Sleep(2 * time.Second)
@@ -78,8 +99,12 @@ func (w *Worker) handleSendEmail(job *Job) error {
 
 func (w *Worker) handleReportGeneration(job *Job) error {
 	ctx := context.Background()
-	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
-		return fmt.Errorf("reportGeneration job=%s: failed to mark running: %w", job.ID, err)
+	claimed, err := w.claim(ctx, job, "reportGeneration")
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
 	}
 	log.Printf("reportGeneration job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
 	time.Sleep(3 * time.Second)
@@ -93,8 +118,12 @@ func (w *Worker) handleReportGeneration(job *Job) error {
 
 func (w *Worker) handleResizeImage(job *Job) error {
 	ctx := context.Background()
-	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
-		return fmt.Errorf("resizeImage job=%s: failed to mark running: %w", job.ID, err)
+	claimed, err := w.claim(ctx, job, "resizeImage")
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
 	}
 	log.Printf("resizeImage job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
 	time.Sleep(2 * time.Second)
@@ -108,8 +137,12 @@ func (w *Worker) handleResizeImage(job *Job) error {
 
 func (w *Worker) handleExportCSV(job *Job) error {
 	ctx := context.Background()
-	if err := w.repo.MarkRunning(ctx, job.ID, w.workerID); err != nil {
-		return fmt.Errorf("exportCSV job=%s: failed to mark running: %w", job.ID, err)
+	claimed, err := w.claim(ctx, job, "exportCSV")
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
 	}
 	log.Printf("exportCSV job=%s worker=%s queue_wait=%s", job.ID, w.workerID, time.Since(job.ScheduledAt))
 	time.Sleep(2 * time.Second)

@@ -31,12 +31,12 @@ CREATE TABLE IF NOT EXISTS jobs (
     PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
-CREATE TABLE IF NOT EXISTS jobs_2026_05_01 PARTITION OF jobs
-    FOR VALUES FROM ('2026-05-01') TO ('2026-05-02');
-
-CREATE TABLE IF NOT EXISTS jobs_2026_05_02 PARTITION OF jobs
-    FOR VALUES FROM ('2026-05-02') TO ('2026-05-03');
-
+-- Monthly partitions are NOT hardcoded here. They are created on demand by the
+-- JobPartitionMaintainer cron (internal/cron/partitionMaintainer.go), which
+-- ensures the current and upcoming month's partition exist ahead of time.
+-- jobs_default is the safety net: any row whose created_at has no dedicated
+-- partition yet still inserts successfully instead of erroring. With the cron
+-- running, jobs_default stays effectively empty.
 CREATE TABLE IF NOT EXISTS jobs_default PARTITION OF jobs DEFAULT;
 
 CREATE INDEX ON jobs (status, scheduled_at)

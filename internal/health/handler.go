@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	statusUp      = "up"
-	statusDown    = "down"
-	statusSkipped = "skipped"
+	statusUp   = "up"
+	statusDown = "down"
 )
 
 type serviceStatus struct {
@@ -40,10 +39,9 @@ func (h *Handler) Health(c *gin.Context) {
 	defer cancel()
 
 	results := map[string]serviceStatus{
-		"postgres":   h.checkPostgres(ctx),
-		"redis":      h.checkRedis(ctx),
-		"rabbitmq":   h.checkRabbitMQ(),
-		"clickhouse": checkClickHouse(ctx),
+		"postgres": h.checkPostgres(ctx),
+		"redis":    h.checkRedis(ctx),
+		"rabbitmq": h.checkRabbitMQ(),
 	}
 
 	overall := statusUp
@@ -97,10 +95,4 @@ func (h *Handler) checkRabbitMQ() serviceStatus {
 	}
 	_ = ch.Close()
 	return serviceStatus{Status: statusUp, Latency: time.Since(start).String()}
-}
-
-// checkClickHouse is a stub. Wire it up once a ClickHouse client is added to
-// the project — until then it reports "skipped" so the route still works.
-func checkClickHouse(_ context.Context) serviceStatus {
-	return serviceStatus{Status: statusSkipped, Error: "clickhouse client not configured"}
 }

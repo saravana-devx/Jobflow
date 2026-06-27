@@ -6,22 +6,26 @@ const (
 	QueuePushNotification = "pushNotification"
 	QueueReportGeneration = "reportGeneration"
 
-	// ExchangeJobsDelayed is the x-delayed-message exchange bound to QueueJobs.
-	// Publish to this exchange with an x-delay header (milliseconds) to schedule
-	// delivery. Use delay=0 for immediate dispatch.
+	// dead-letter queue for jobs that ran out of retries — kept for replay, not dropped
+	QueueJobsDLQ = QueueJobs + ".dlq"
+
+	// delayed-message exchange for jobs; publish with an x-delay header (ms), 0 = now
 	ExchangeJobsDelayed = QueueJobs + ".delayed"
 )
 
-// AppQueues is the authoritative list of queues this service owns.
-// Add new queues here; bootstrap initializes all of them on startup.
+// every queue this service owns; bootstrap declares all of them on startup
 var AppQueues = []QueueConfig{
 	DefaultQueueConfig(QueueSMS),
 	DefaultQueueConfig(QueuePushNotification),
 	DefaultQueueConfig(QueueReportGeneration),
+	// Declare the DLQ before the jobs queue that dead-letters into it.
+	DefaultQueueConfig(QueueJobsDLQ),
 	{
 		Name:               QueueJobs,
 		Durable:            true,
 		Type:               "classic", // delayed message plugin requires classic queue type
 		UseDelayedExchange: true,
+		// dead-letter via the default exchange, which routes by key to jobs.dlq
+		DeadLetterRoutingKey: QueueJobsDLQ,
 	},
 }
